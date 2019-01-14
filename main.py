@@ -13,6 +13,9 @@ from shared_optim import SharedRMSprop, SharedAdam
 #from gym.configuration import undo_logger_setup
 import time
 
+
+# add an option for enabling terminal prediction loss
+
 #undo_logger_setup()
 parser = argparse.ArgumentParser(description='A3C')
 parser.add_argument(
