@@ -6,7 +6,7 @@ from utils import norm_col_init, weights_init
 
 
 class A3Clstm(torch.nn.Module):
-    def __init__(self, num_inputs, action_space):
+    def __init__(self, num_inputs, action_space, terminal_prediction):
         super(A3Clstm, self).__init__()
         self.conv1 = nn.Conv2d(num_inputs, 32, 5, stride=1, padding=2)
         self.maxp1 = nn.MaxPool2d(2, 2)
@@ -18,9 +18,16 @@ class A3Clstm(torch.nn.Module):
         self.maxp4 = nn.MaxPool2d(2, 2)
 
         self.lstm = nn.LSTMCell(1024, 512)
+
         num_outputs = action_space.n
+
         self.critic_linear = nn.Linear(512, 1)
         self.actor_linear = nn.Linear(512, num_outputs)
+
+        self.terminal_aux_head = None
+        if terminal_prediction:
+            self.terminal_aux_head = nn.Linear(512, 1) # output a single prediction
+        # TODO later reward prediction will be added here as well ...
 
         self.apply(weights_init)
         relu_gain = nn.init.calculate_gain('relu')
@@ -53,4 +60,7 @@ class A3Clstm(torch.nn.Module):
 
         x = hx
 
-        return self.critic_linear(x), self.actor_linear(x), (hx, cx)
+        if self.terminal_aux_head is None:
+            return self.critic_linear(x), self.actor_linear(x), (hx, cx)
+        else:
+            return self.critic_linear(x), self.actor_linear(x), (hx, cx), self.terminal_aux_head(x)
