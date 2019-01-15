@@ -25,7 +25,7 @@ class A3Clstm(torch.nn.Module):
         self.actor_linear = nn.Linear(512, num_outputs)
 
         self.terminal_aux_head = None
-        if terminal_prediction:
+        if terminal_prediction: # this comes with the arg parser
             self.terminal_aux_head = nn.Linear(512, 1) # output a single prediction
         # TODO later reward prediction will be added here as well ...
 
@@ -35,12 +35,13 @@ class A3Clstm(torch.nn.Module):
         self.conv2.weight.data.mul_(relu_gain)
         self.conv3.weight.data.mul_(relu_gain)
         self.conv4.weight.data.mul_(relu_gain)
-        self.actor_linear.weight.data = norm_col_init(
-            self.actor_linear.weight.data, 0.01)
+        self.actor_linear.weight.data = norm_col_init(self.actor_linear.weight.data, 0.01)
         self.actor_linear.bias.data.fill_(0)
-        self.critic_linear.weight.data = norm_col_init(
-            self.critic_linear.weight.data, 1.0)
+        self.critic_linear.weight.data = norm_col_init(self.critic_linear.weight.data, 1.0)
         self.critic_linear.bias.data.fill_(0)
+        if terminal_prediction:
+            self.terminal_aux_head.weight.data = norm_col_init(self.terminal_aux_head.weight.data, 1.0)
+            self.terminal_aux_head.bias.data.fill_(0)
 
         self.lstm.bias_ih.data.fill_(0)
         self.lstm.bias_hh.data.fill_(0)
@@ -57,10 +58,11 @@ class A3Clstm(torch.nn.Module):
         x = x.view(x.size(0), -1)
 
         hx, cx = self.lstm(x, (hx, cx))
-
         x = hx
 
         if self.terminal_aux_head is None:
-            return self.critic_linear(x), self.actor_linear(x), (hx, cx)
+            terminal_predictions = None
         else:
-            return self.critic_linear(x), self.actor_linear(x), (hx, cx), self.terminal_aux_head(x)
+            terminal_predictions = self.terminal_aux_head(x)
+
+        return self.critic_linear(x), self.actor_linear(x), (hx, cx), terminal_predictions # last element is None if no terminal auxiliary task.
