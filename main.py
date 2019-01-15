@@ -43,6 +43,10 @@ parser.add_argument(
     metavar='S',
     help='random seed (default: 1)')
 parser.add_argument(
+    '--terminal-prediction',
+    default=False,
+    help='Enable or Disable Terminal Prediction Auxiliary Task') # this is our novel addition to the general A3C
+parser.add_argument(
     '--workers',
     type=int,
     default=32,
