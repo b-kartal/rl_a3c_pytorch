@@ -161,6 +161,8 @@ if __name__ == '__main__':
 
     processes = []
 
+    print(shared_model)
+
     p = mp.Process(target=test, args=(args, shared_model, env_conf))
     p.start()
     processes.append(p)

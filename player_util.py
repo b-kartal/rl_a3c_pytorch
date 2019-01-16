@@ -25,15 +25,15 @@ class Agent(object):
 
     def action_train(self):
 
-        value, logit, (self.hx, self.cx), terminal_predictions = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx)))
+        value, logit, (self.hx, self.cx), terminal_prediction = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx)))
 
         prob = F.softmax(logit, dim=1)
         log_prob = F.log_softmax(logit, dim=1)
         entropy = -(log_prob * prob).sum(1)
         self.entropies.append(entropy)
 
-        if terminal_predictions is not None:
-            self.terminal_predictions.append(Variable(terminal_predictions))
+        if terminal_prediction is not None:
+            self.terminal_predictions.append(Variable(terminal_prediction))
 
         action = prob.multinomial(1).data
         log_prob = log_prob.gather(1, Variable(action))

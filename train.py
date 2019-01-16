@@ -81,7 +81,9 @@ def train(rank, args, shared_model, optimizer, env_conf):
         player.values.append(Variable(R))
         policy_loss = 0
         value_loss = 0
-        terminal_loss = 0 # added terminal loss here
+
+        terminal_loss = torch.zeros(1,1) # added terminal loss here
+        terminal_loss = Variable(terminal_loss, requires_grad=True)
 
         gae = torch.zeros(1, 1)
         if gpu_id >= 0:
@@ -99,30 +101,27 @@ def train(rank, args, shared_model, optimizer, env_conf):
 
             policy_loss = policy_loss - player.log_probs[i] * Variable(gae) - 0.01 * player.entropies[i]
 
+        # New Part for the Terminal Prediction Auxiliary Task
         if args.terminal_prediction and player.done: # this is the only time we can get labels
             # create the terminal self-supervised labels
-
             end_predict_labels = v_wrap(np.arange(1, (len(player.terminal_predictions) + 1)) / (len(player.terminal_predictions) + 1), np.float32).unsqueeze(1)  # get torch version.
-            tensor_terminal_predictions = torch.tensor(player.terminal_predictions).unsqueeze(1)
+            tensor_terminal_predictions = Variable(torch.tensor(player.terminal_predictions).unsqueeze(1), requires_grad=True)
 
-            print(f" shape is {tensor_terminal_predictions.shape}")
-            end_predict_labels = Variable(end_predict_labels, requires_grad=True)
-            tensor_terminal_predictions = Variable(tensor_terminal_predictions, requires_grad=True)
+            #print(f"loss is {F.mse_loss(tensor_terminal_predictions, end_predict_labels)}")
+            loss_fn = torch.nn.MSELoss()
 
             if gpu_id >= 0:
                 with torch.cuda.device(gpu_id):
+                    terminal_loss = terminal_loss.cuda()
                     tensor_terminal_predictions = tensor_terminal_predictions.cuda()
                     end_predict_labels = end_predict_labels.cuda()
 
-            # compute loss for end-game prediction
-            terminal_loss = F.mse_loss(tensor_terminal_predictions, end_predict_labels)
+            terminal_loss = terminal_loss + loss_fn(tensor_terminal_predictions, end_predict_labels)
+            player.terminal_predictions = []  # Note that this is not done in clear_actions method as terminal labels are received at the end of episode
 
-            print(f" terminal loss is {terminal_loss} policy loss is {policy_loss} and value loss is {value_loss}")
 
-            player.terminal_predictions = [] # this is not done in clear_actions method to prevent early emptying before labels for terminal prediction is obtained
 
         player.model.zero_grad()
-
         (policy_loss + 0.5 * value_loss + terminal_loss).backward()
         ensure_shared_grads(player.model, shared_model, gpu=gpu_id >= 0)
         optimizer.step()

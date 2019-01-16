@@ -64,6 +64,6 @@ class A3Clstm(torch.nn.Module):
         if self.terminal_aux_head is None:
             terminal_predictions = None
         else:
-            terminal_predictions = torch.sigmoid(self.terminal_aux_head(x))
+            terminal_predictions = self.terminal_aux_head(x)
 
-        return self.critic_linear(x), self.actor_linear(x), (hx, cx), terminal_predictions # last element is None if no terminal auxiliary task.
+        return self.critic_linear(x), self.actor_linear(x), (hx, cx), torch.sigmoid(terminal_predictions) # last element is None if no terminal auxiliary task.
