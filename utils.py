@@ -18,6 +18,11 @@ def setup_logger(logger_name, log_file, level=logging.INFO):
     l.addHandler(streamHandler)
 
 
+def v_wrap(np_array, dtype=np.float32):
+    if np_array.dtype != dtype:
+        np_array = np_array.astype(dtype)
+    return torch.from_numpy(np_array)
+
 def read_config(file_path):
     """Read JSON config."""
     json_object = json.load(open(file_path, 'r'))

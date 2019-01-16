@@ -17,6 +17,7 @@ class Agent(object):
         self.log_probs = []
         self.rewards = []
         self.entropies = []
+        self.terminal_predictions = [] # TODO empty at the end of episode
         self.done = True
         self.info = None
         self.reward = 0
@@ -24,12 +25,16 @@ class Agent(object):
 
     def action_train(self):
 
-        value, logit, (self.hx, self.cx) = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx)))
+        value, logit, (self.hx, self.cx), terminal_predictions = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx)))
 
         prob = F.softmax(logit, dim=1)
         log_prob = F.log_softmax(logit, dim=1)
         entropy = -(log_prob * prob).sum(1)
         self.entropies.append(entropy)
+
+        if terminal_predictions is not None:
+            self.terminal_predictions.append(Variable(terminal_predictions))
+
         action = prob.multinomial(1).data
         log_prob = log_prob.gather(1, Variable(action))
         state, self.reward, self.done, self.info = self.env.step(action.cpu().numpy())
@@ -58,8 +63,7 @@ class Agent(object):
             else:
                 self.cx = Variable(self.cx.data)
                 self.hx = Variable(self.hx.data)
-            value, logit, (self.hx, self.cx) = self.model((Variable(
-                self.state.unsqueeze(0)), (self.hx, self.cx)))
+            value, logit, (self.hx, self.cx), _ = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx))) # terminal head is not used for control now
         prob = F.softmax(logit, dim=1)
         action = prob.max(1)[1].data.cpu().numpy()
         state, self.reward, self.done, self.info = self.env.step(action[0])

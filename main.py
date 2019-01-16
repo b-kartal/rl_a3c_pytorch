@@ -141,7 +141,7 @@ if __name__ == '__main__':
         if i in args.env:
             env_conf = setup_json[i]
     env = atari_env(args.env, env_conf, args)
-    shared_model = A3Clstm(env.observation_space.shape[0], env.action_space, args.terminal_prediction)
+    shared_model = A3Clstm(env.observation_space.shape[0], env.action_space, args.terminal_prediction) # this is global NN copy workers sync to-from ...
     if args.load:
         saved_state = torch.load(
             '{0}{1}.dat'.format(args.load_model_dir, args.env),
@@ -166,8 +166,7 @@ if __name__ == '__main__':
     processes.append(p)
     time.sleep(0.1)
     for rank in range(0, args.workers):
-        p = mp.Process(
-            target=train, args=(rank, args, shared_model, optimizer, env_conf))
+        p = mp.Process(target=train, args=(rank, args, shared_model, optimizer, env_conf))
         p.start()
         processes.append(p)
         time.sleep(0.1)

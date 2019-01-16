@@ -2,8 +2,9 @@ from __future__ import division
 from setproctitle import setproctitle as ptitle
 import torch
 import torch.optim as optim
+import torch.nn.functional as F
 from environment import atari_env
-from utils import ensure_shared_grads
+from utils import ensure_shared_grads, np, v_wrap
 from model import A3Clstm
 from player_util import Agent
 from torch.autograd import Variable
@@ -25,8 +26,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
     env.seed(args.seed + rank)
     player = Agent(None, env, args, None)
     player.gpu_id = gpu_id
-    player.model = A3Clstm(player.env.observation_space.shape[0],
-                           player.env.action_space)
+    player.model = A3Clstm(player.env.observation_space.shape[0], player.env.action_space, args.terminal_prediction)
 
     player.state = player.env.reset()
     player.state = torch.from_numpy(player.state).float()
@@ -35,7 +35,9 @@ def train(rank, args, shared_model, optimizer, env_conf):
             player.state = player.state.cuda()
             player.model = player.model.cuda()
     player.model.train()
-    player.eps_len += 2
+    player.eps_len += 2 # TODO why by two? is this frame-skipping ?
+
+    # Below is where the cores are running episodes continously ...
     while True:
         if gpu_id >= 0:
             with torch.cuda.device(gpu_id):
@@ -65,11 +67,11 @@ def train(rank, args, shared_model, optimizer, env_conf):
             if gpu_id >= 0:
                 with torch.cuda.device(gpu_id):
                     player.state = player.state.cuda()
+                    player.terminal_predictions = player.terminal_predictions.cuda() # added this to move to GPU
 
         R = torch.zeros(1, 1)
         if not player.done:
-            value, _, _ = player.model((Variable(player.state.unsqueeze(0)),
-                                        (player.hx, player.cx)))
+            value, _, _, _ = player.model((Variable(player.state.unsqueeze(0)), (player.hx, player.cx)))
             R = value.data
 
         if gpu_id >= 0:
@@ -79,28 +81,49 @@ def train(rank, args, shared_model, optimizer, env_conf):
         player.values.append(Variable(R))
         policy_loss = 0
         value_loss = 0
+        terminal_loss = 0 # added terminal loss here
+
         gae = torch.zeros(1, 1)
         if gpu_id >= 0:
             with torch.cuda.device(gpu_id):
                 gae = gae.cuda()
-        R = Variable(R)
+        R = Variable(R) # TODO why this is here?
         for i in reversed(range(len(player.rewards))):
             R = args.gamma * R + player.rewards[i]
             advantage = R - player.values[i]
             value_loss = value_loss + 0.5 * advantage.pow(2)
 
             # Generalized Advantage Estimataion
-            delta_t = player.rewards[i] + args.gamma * \
-                player.values[i + 1].data - player.values[i].data
-
+            delta_t = player.rewards[i] + args.gamma * player.values[i + 1].data - player.values[i].data
             gae = gae * args.gamma * args.tau + delta_t
 
-            policy_loss = policy_loss - \
-                player.log_probs[i] * \
-                Variable(gae) - 0.01 * player.entropies[i]
+            policy_loss = policy_loss - player.log_probs[i] * Variable(gae) - 0.01 * player.entropies[i]
+
+        if args.terminal_prediction and player.done: # this is the only time we can get labels
+            # create the terminal self-supervised labels
+
+            end_predict_labels = v_wrap(np.arange(1, (len(player.terminal_predictions) + 1)) / (len(player.terminal_predictions) + 1), np.float32).unsqueeze(1)  # get torch version.
+            tensor_terminal_predictions = torch.tensor(player.terminal_predictions).unsqueeze(1)
+
+            print(f" shape is {tensor_terminal_predictions.shape}")
+            end_predict_labels = Variable(end_predict_labels, requires_grad=True)
+            tensor_terminal_predictions = Variable(tensor_terminal_predictions, requires_grad=True)
+
+            if gpu_id >= 0:
+                with torch.cuda.device(gpu_id):
+                    tensor_terminal_predictions = tensor_terminal_predictions.cuda()
+                    end_predict_labels = end_predict_labels.cuda()
+
+            # compute loss for end-game prediction
+            terminal_loss = F.mse_loss(tensor_terminal_predictions, end_predict_labels)
+
+            print(f" terminal loss is {terminal_loss} policy loss is {policy_loss} and value loss is {value_loss}")
+
+            player.terminal_predictions = [] # this is not done in clear_actions method to prevent early emptying before labels for terminal prediction is obtained
 
         player.model.zero_grad()
-        (policy_loss + 0.5 * value_loss).backward()
+
+        (policy_loss + 0.5 * value_loss + terminal_loss).backward()
         ensure_shared_grads(player.model, shared_model, gpu=gpu_id >= 0)
         optimizer.step()
         player.clear_actions()

@@ -49,6 +49,7 @@ class A3Clstm(torch.nn.Module):
         self.train()
 
     def forward(self, inputs):
+        self.train()
         inputs, (hx, cx) = inputs
         x = F.relu(self.maxp1(self.conv1(inputs)))
         x = F.relu(self.maxp2(self.conv2(x)))
@@ -63,6 +64,6 @@ class A3Clstm(torch.nn.Module):
         if self.terminal_aux_head is None:
             terminal_predictions = None
         else:
-            terminal_predictions = self.terminal_aux_head(x)
+            terminal_predictions = torch.sigmoid(self.terminal_aux_head(x))
 
         return self.critic_linear(x), self.actor_linear(x), (hx, cx), terminal_predictions # last element is None if no terminal auxiliary task.
