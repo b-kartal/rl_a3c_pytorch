@@ -18,6 +18,7 @@ class Agent(object):
         self.rewards = []
         self.entropies = []
         self.terminal_predictions = [] # TODO empty at the end of episode
+        self.reward_predictions = [] # TODO empty at the end of episode
         self.done = True
         self.info = None
         self.reward = 0
@@ -25,7 +26,7 @@ class Agent(object):
 
     def action_train(self):
 
-        value, logit, (self.hx, self.cx), terminal_prediction = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx)))
+        value, logit, (self.hx, self.cx), terminal_prediction, reward_prediction = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx)))
 
         prob = F.softmax(logit, dim=1)
         log_prob = F.log_softmax(logit, dim=1)
@@ -34,6 +35,9 @@ class Agent(object):
 
         if terminal_prediction is not None:
             self.terminal_predictions.append(Variable(terminal_prediction))
+
+        if reward_prediction is not None:
+            self.reward_predictions.append(Variable(reward_prediction)) # does this need to be a Variable?
 
         action = prob.multinomial(1).data
         log_prob = log_prob.gather(1, Variable(action))
@@ -63,7 +67,7 @@ class Agent(object):
             else:
                 self.cx = Variable(self.cx.data)
                 self.hx = Variable(self.hx.data)
-            value, logit, (self.hx, self.cx), _ = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx))) # terminal head is not used for control now
+            value, logit, (self.hx, self.cx), _, _ = self.model((Variable(self.state.unsqueeze(0)), (self.hx, self.cx))) # terminal head is not used for control now
         prob = F.softmax(logit, dim=1)
         action = prob.max(1)[1].data.cpu().numpy()
         state, self.reward, self.done, self.info = self.env.step(action[0])
@@ -79,4 +83,5 @@ class Agent(object):
         self.log_probs = []
         self.rewards = []
         self.entropies = []
+        self.reward_predictions = [] # at each regular update, we can utilize reward prediction
         return self

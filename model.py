@@ -6,7 +6,7 @@ from utils import norm_col_init, weights_init
 
 
 class A3Clstm(torch.nn.Module):
-    def __init__(self, num_inputs, action_space, terminal_prediction):
+    def __init__(self, num_inputs, action_space, terminal_prediction, reward_prediction):
         super(A3Clstm, self).__init__()
         self.conv1 = nn.Conv2d(num_inputs, 32, 5, stride=1, padding=2)
         self.maxp1 = nn.MaxPool2d(2, 2)
@@ -29,6 +29,11 @@ class A3Clstm(torch.nn.Module):
             self.terminal_aux_head = nn.Linear(512, 1) # output a single prediction
         # TODO later reward prediction will be added here as well ...
 
+        self.reward_aux_head = None
+        if reward_prediction:
+            self.reward_aux_head = nn.Linear(512,1) # output a single estimate of reward prediction
+
+
         self.apply(weights_init)
         relu_gain = nn.init.calculate_gain('relu')
         self.conv1.weight.data.mul_(relu_gain)
@@ -39,9 +44,16 @@ class A3Clstm(torch.nn.Module):
         self.actor_linear.bias.data.fill_(0)
         self.critic_linear.weight.data = norm_col_init(self.critic_linear.weight.data, 1.0)
         self.critic_linear.bias.data.fill_(0)
+
+        # new added parts for auxiliary tasks within the network
         if terminal_prediction:
             self.terminal_aux_head.weight.data = norm_col_init(self.terminal_aux_head.weight.data, 1.0)
             self.terminal_aux_head.bias.data.fill_(0)
+
+        if reward_prediction:
+            self.reward_aux_head.weight.data = norm_col_init(self.reward_aux_head.weight.data, 1.0)
+            self.reward_aux_head.bias.data.fill_(0)
+
 
         self.lstm.bias_ih.data.fill_(0)
         self.lstm.bias_hh.data.fill_(0)
@@ -62,8 +74,13 @@ class A3Clstm(torch.nn.Module):
         x = hx
 
         if self.terminal_aux_head is None:
-            terminal_predictions = None
+            terminal_prediction = None
         else:
-            terminal_predictions = self.terminal_aux_head(x)
+            terminal_prediction = torch.sigmoid(self.terminal_aux_head(x))
 
-        return self.critic_linear(x), self.actor_linear(x), (hx, cx), torch.sigmoid(terminal_predictions) # last element is None if no terminal auxiliary task.
+        if self.reward_aux_head is None:
+            reward_prediction = None
+        else:
+            reward_prediction = self.reward_aux_head(x)
+
+        return self.critic_linear(x), self.actor_linear(x), (hx, cx), terminal_prediction, reward_prediction # last two outputs are auxiliary tasks

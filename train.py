@@ -11,6 +11,7 @@ from torch.autograd import Variable
 
 
 def train(rank, args, shared_model, optimizer, env_conf):
+
     ptitle('Training Agent: {}'.format(rank))
     gpu_id = args.gpu_ids[rank % len(args.gpu_ids)]
     torch.manual_seed(args.seed + rank)
@@ -26,7 +27,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
     env.seed(args.seed + rank)
     player = Agent(None, env, args, None)
     player.gpu_id = gpu_id
-    player.model = A3Clstm(player.env.observation_space.shape[0], player.env.action_space, args.terminal_prediction)
+    player.model = A3Clstm(player.env.observation_space.shape[0], player.env.action_space, args.terminal_prediction, args.reward_prediction)
 
     player.state = player.env.reset()
     player.state = torch.from_numpy(player.state).float()
@@ -71,7 +72,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
 
         R = torch.zeros(1, 1)
         if not player.done:
-            value, _, _, _ = player.model((Variable(player.state.unsqueeze(0)), (player.hx, player.cx)))
+            value, _, _, _, _ = player.model((Variable(player.state.unsqueeze(0)), (player.hx, player.cx)))
             R = value.data
 
         if gpu_id >= 0:
@@ -85,11 +86,17 @@ def train(rank, args, shared_model, optimizer, env_conf):
         terminal_loss = torch.zeros(1,1) # added terminal loss here
         terminal_loss = Variable(terminal_loss, requires_grad=True)
 
+        reward_pred_loss = torch.zeros(1, 1)  # added terminal loss here
+        reward_pred_loss = Variable(terminal_loss, requires_grad=True)
+
+
         gae = torch.zeros(1, 1)
         if gpu_id >= 0:
             with torch.cuda.device(gpu_id):
                 gae = gae.cuda()
         R = Variable(R) # TODO why this is here?
+        loss_fn = torch.nn.MSELoss()
+
         for i in reversed(range(len(player.rewards))):
             R = args.gamma * R + player.rewards[i]
             advantage = R - player.values[i]
@@ -101,6 +108,19 @@ def train(rank, args, shared_model, optimizer, env_conf):
 
             policy_loss = policy_loss - player.log_probs[i] * Variable(gae) - 0.01 * player.entropies[i]
 
+        # New part for the Reward Prediction Auxiliary Task
+        if args.reward_prediction:
+            actual_rewards = v_wrap(np.asarray(player.rewards), np.float32).unsqueeze(1)
+            predicted_rewards = Variable(torch.tensor(player.reward_predictions).unsqueeze(1), requires_grad=True)
+
+            if gpu_id >= 0:
+                with torch.cuda.device(gpu_id):
+                    reward_pred_loss = terminal_loss.cuda()
+                    predicted_rewards = predicted_rewards.cuda()
+                    actual_rewards = actual_rewards.cuda()
+
+            reward_pred_loss = reward_pred_loss + loss_fn(predicted_rewards, actual_rewards)
+
         # New Part for the Terminal Prediction Auxiliary Task
         if args.terminal_prediction and player.done: # this is the only time we can get labels
             # create the terminal self-supervised labels
@@ -108,7 +128,6 @@ def train(rank, args, shared_model, optimizer, env_conf):
             tensor_terminal_predictions = Variable(torch.tensor(player.terminal_predictions).unsqueeze(1), requires_grad=True)
 
             #print(f"loss is {F.mse_loss(tensor_terminal_predictions, end_predict_labels)}")
-            loss_fn = torch.nn.MSELoss()
 
             if gpu_id >= 0:
                 with torch.cuda.device(gpu_id):
@@ -119,10 +138,10 @@ def train(rank, args, shared_model, optimizer, env_conf):
             terminal_loss = terminal_loss + loss_fn(tensor_terminal_predictions, end_predict_labels)
             player.terminal_predictions = []  # Note that this is not done in clear_actions method as terminal labels are received at the end of episode
 
-
-
         player.model.zero_grad()
-        (policy_loss + 0.5 * value_loss + terminal_loss).backward()
+        print(f"policy loss {policy_loss} and value loss {value_loss} and terminal loss {terminal_loss} and reward pred loss {reward_pred_loss}")
+
+        (policy_loss + 0.5 * value_loss + terminal_loss + reward_pred_loss).backward()
         ensure_shared_grads(player.model, shared_model, gpu=gpu_id >= 0)
         optimizer.step()
         player.clear_actions()

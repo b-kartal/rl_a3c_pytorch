@@ -44,8 +44,19 @@ parser.add_argument(
     help='random seed (default: 1)')
 parser.add_argument(
     '--terminal-prediction',
+    action="store_true",
     default=False,
     help='Enable or Disable Terminal Prediction Auxiliary Task') # this is our novel addition to the general A3C
+parser.add_argument(
+    '--reward-prediction',
+    action="store_true",
+    default=False,
+    help='Enable or Disable Reward Prediction Auxiliary Task') # this is to compare UNREAL setting.
+parser.add_argument(
+    '--render',
+    action="store_true",
+    default=False,
+    help='Enable or Disable Game Rendering') # added to watch test plays
 parser.add_argument(
     '--workers',
     type=int,
@@ -80,7 +91,10 @@ parser.add_argument(
     metavar='SO',
     help='use an optimizer without shared statistics.')
 parser.add_argument(
-    '--load', default=False, metavar='L', help='load a trained model')
+    '--load',
+    default=False,
+    metavar='L',
+    help='load a trained model')
 parser.add_argument(
     '--save-max',
     default=True,
@@ -121,6 +135,7 @@ parser.add_argument(
     metavar='SR',
     help='frame skip rate (default: 4)')
 
+
 # Based on
 # https://github.com/pytorch/examples/tree/master/mnist_hogwild
 # Training settings
@@ -141,7 +156,7 @@ if __name__ == '__main__':
         if i in args.env:
             env_conf = setup_json[i]
     env = atari_env(args.env, env_conf, args)
-    shared_model = A3Clstm(env.observation_space.shape[0], env.action_space, args.terminal_prediction) # this is global NN copy workers sync to-from ...
+    shared_model = A3Clstm(env.observation_space.shape[0], env.action_space, args.terminal_prediction, args.reward_prediction) # this is global NN copy workers sync to-from ...
     if args.load:
         saved_state = torch.load(
             '{0}{1}.dat'.format(args.load_model_dir, args.env),
