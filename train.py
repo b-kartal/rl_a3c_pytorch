@@ -127,8 +127,6 @@ def train(rank, args, shared_model, optimizer, env_conf):
             end_predict_labels = v_wrap(np.arange(1, (len(player.terminal_predictions) + 1)) / (len(player.terminal_predictions) + 1), np.float32).unsqueeze(1)  # get torch version.
             tensor_terminal_predictions = Variable(torch.tensor(player.terminal_predictions).unsqueeze(1), requires_grad=True)
 
-            #print(f"loss is {F.mse_loss(tensor_terminal_predictions, end_predict_labels)}")
-
             if gpu_id >= 0:
                 with torch.cuda.device(gpu_id):
                     terminal_loss = terminal_loss.cuda()
