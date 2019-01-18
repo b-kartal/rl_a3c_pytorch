@@ -95,7 +95,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
             with torch.cuda.device(gpu_id):
                 gae = gae.cuda()
         R = Variable(R) # TODO why this is here?
-        loss_fn = torch.nn.MSELoss()
+        loss_fn = torch.nn.L1Loss()
 
         for i in reversed(range(len(player.rewards))):
             R = args.gamma * R + player.rewards[i]
@@ -137,7 +137,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
             player.terminal_predictions = []  # Note that this is not done in clear_actions method as terminal labels are received at the end of episode
 
         player.model.zero_grad()
-        print(f"policy loss {policy_loss} and value loss {value_loss} and terminal loss {terminal_loss} and reward pred loss {reward_pred_loss}")
+        #print(f"policy loss {policy_loss} and value loss {value_loss} and terminal loss {terminal_loss} and reward pred loss {reward_pred_loss}")
 
         (policy_loss + 0.5 * value_loss + terminal_loss + reward_pred_loss).backward()
         ensure_shared_grads(player.model, shared_model, gpu=gpu_id >= 0)
