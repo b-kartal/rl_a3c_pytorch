@@ -34,10 +34,10 @@ class Agent(object):
         self.entropies.append(entropy)
 
         if terminal_prediction is not None:
-            self.terminal_predictions.append(Variable(terminal_prediction))
+            self.terminal_predictions.append(terminal_prediction)
 
         if reward_prediction is not None:
-            self.reward_predictions.append(Variable(reward_prediction)) # does this need to be a Variable?
+            self.reward_predictions.append(reward_prediction) # does this need to be a Variable?
 
         action = prob.multinomial(1).data
         log_prob = log_prob.gather(1, Variable(action))
