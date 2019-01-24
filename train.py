@@ -70,7 +70,6 @@ def train(rank, args, shared_model, optimizer, env_conf):
             if gpu_id >= 0:
                 with torch.cuda.device(gpu_id):
                     player.state = player.state.cuda()
-                    player.terminal_predictions = player.terminal_predictions.cuda() # added this to move to GPU
 
         R = torch.zeros(1, 1)
         if not player.done:
