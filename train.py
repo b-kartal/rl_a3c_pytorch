@@ -132,7 +132,9 @@ def train(rank, args, shared_model, optimizer, env_conf):
             for i in range(len(player.terminal_predictions)):
                  terminal_loss = terminal_loss + ( player.terminal_predictions[i] - end_predict_labels[i] ).pow(2)
 
-            #print(terminal_loss)
+            terminal_loss = terminal_loss / len(player.terminal_predictions)
+
+            print(terminal_loss)
 
             player.terminal_predictions = []  # Note that this is not done in clear_actions method as terminal labels are received at the end of episode
 
