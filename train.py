@@ -85,8 +85,6 @@ def train(rank, args, shared_model, optimizer, env_conf):
         policy_loss = 0
         value_loss = 0
         reward_pred_loss = 0
-
-
         terminal_loss = 0
 
 
@@ -96,7 +94,6 @@ def train(rank, args, shared_model, optimizer, env_conf):
             with torch.cuda.device(gpu_id):
                 gae = gae.cuda()
         R = Variable(R) # TODO why this is here?
-        loss_fn = torch.nn.MSELoss()
 
         for i in reversed(range(len(player.rewards))):
             R = args.gamma * R + player.rewards[i]
