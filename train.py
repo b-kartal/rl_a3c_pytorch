@@ -50,11 +50,11 @@ def train(rank, args, shared_model, optimizer, env_conf):
         if player.done:
             if gpu_id >= 0:
                 with torch.cuda.device(gpu_id):
-                    player.cx = Variable(torch.zeros(1, 512).cuda())
-                    player.hx = Variable(torch.zeros(1, 512).cuda())
+                    player.cx = Variable(torch.zeros(1, 128).cuda())
+                    player.hx = Variable(torch.zeros(1, 128).cuda())
             else:
-                player.cx = Variable(torch.zeros(1, 512))
-                player.hx = Variable(torch.zeros(1, 512))
+                player.cx = Variable(torch.zeros(1, 128))
+                player.hx = Variable(torch.zeros(1, 128))
         else:
             player.cx = Variable(player.cx.data)
             player.hx = Variable(player.hx.data)
@@ -138,7 +138,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
         player.model.zero_grad()
         #print(f"policy loss {policy_loss} and value loss {value_loss} and terminal loss {terminal_loss} and reward pred loss {reward_pred_loss}")
 
-        total_loss = policy_loss + 0.5 * value_loss + terminal_loss + reward_pred_loss
+        total_loss = policy_loss + 0.5 * value_loss + 0.5*terminal_loss + reward_pred_loss
 
         if args.terminal_prediction and player.done is False:
             total_loss.backward(retain_graph=True)

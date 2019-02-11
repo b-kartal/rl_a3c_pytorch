@@ -17,21 +17,21 @@ class A3Clstm(torch.nn.Module):
         self.conv4 = nn.Conv2d(64, 64, 3, stride=1, padding=1)
         self.maxp4 = nn.MaxPool2d(2, 2)
 
-        self.lstm = nn.LSTMCell(1024, 512)
+        self.lstm = nn.LSTMCell(1024, 128) # it was 1024 x 512
 
         num_outputs = action_space.n
 
-        self.critic_linear = nn.Linear(512, 1)
-        self.actor_linear = nn.Linear(512, num_outputs)
+        self.critic_linear = nn.Linear(128, 1) # it was 512 x 1
+        self.actor_linear = nn.Linear(128, num_outputs)
 
         self.terminal_aux_head = None
         if terminal_prediction: # this comes with the arg parser
-            self.terminal_aux_head = nn.Linear(512, 1) # output a single prediction
+            self.terminal_aux_head = nn.Linear(128, 1) # output a single prediction
         # TODO later reward prediction will be added here as well ...
 
         self.reward_aux_head = None
         if reward_prediction:
-            self.reward_aux_head = nn.Linear(512,1) # output a single estimate of reward prediction
+            self.reward_aux_head = nn.Linear(128,1) # output a single estimate of reward prediction
 
 
         self.apply(weights_init)

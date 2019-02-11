@@ -58,12 +58,12 @@ class Agent(object):
                 if self.gpu_id >= 0:
                     with torch.cuda.device(self.gpu_id):
                         self.cx = Variable(
-                            torch.zeros(1, 512).cuda())
+                            torch.zeros(1, 128).cuda())
                         self.hx = Variable(
-                            torch.zeros(1, 512).cuda())
+                            torch.zeros(1, 128).cuda())
                 else:
-                    self.cx = Variable(torch.zeros(1, 512))
-                    self.hx = Variable(torch.zeros(1, 512))
+                    self.cx = Variable(torch.zeros(1, 128))
+                    self.hx = Variable(torch.zeros(1, 128))
             else:
                 self.cx = Variable(self.cx.data)
                 self.hx = Variable(self.hx.data)
