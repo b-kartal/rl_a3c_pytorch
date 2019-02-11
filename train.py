@@ -138,7 +138,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
         player.model.zero_grad()
         #print(f"policy loss {policy_loss} and value loss {value_loss} and terminal loss {terminal_loss} and reward pred loss {reward_pred_loss}")
 
-        total_loss = policy_loss + 0.5 * value_loss + 0.5*terminal_loss + reward_pred_loss
+        total_loss = policy_loss + 0.5 * value_loss + 0.5*terminal_loss + 0.5*reward_pred_loss
 
         if args.terminal_prediction and player.done is False:
             total_loss.backward(retain_graph=True)
