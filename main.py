@@ -66,7 +66,7 @@ parser.add_argument(
 parser.add_argument(
     '--num-steps',
     type=int,
-    default=50,
+    default=20,
     metavar='NS',
     help='number of forward steps in A3C (default: 20)')
 parser.add_argument(

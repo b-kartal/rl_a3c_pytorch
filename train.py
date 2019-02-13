@@ -38,9 +38,10 @@ def train(rank, args, shared_model, optimizer, env_conf):
             player.state = player.state.cuda()
             player.model = player.model.cuda()
     player.model.train()
-    player.eps_len += 2 # TODO why by two? is this frame-skipping ?
 
     # Below is where the cores are running episodes continously ...
+    average_ep_length = 0
+
     while True:
         if gpu_id >= 0:
             with torch.cuda.device(gpu_id):
@@ -60,6 +61,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
             player.hx = Variable(player.hx.data)
 
         for step in range(args.num_steps):
+            player.eps_len += 1
             player.action_train()
             if player.done:
                 break
@@ -109,41 +111,25 @@ def train(rank, args, shared_model, optimizer, env_conf):
             if args.reward_prediction:
                 reward_pred_loss = reward_pred_loss + (player.reward_predictions[i] - player.rewards[i]).pow(2)
 
-        # New part for the Reward Prediction Auxiliary Task
-        #if args.reward_prediction:
-        #    actual_rewards = v_wrap(np.asarray(player.rewards), np.float32).unsqueeze(1)
-        #    predicted_rewards = Variable(torch.tensor(player.reward_predictions).unsqueeze(1), requires_grad=True)
-
-        #    if gpu_id >= 0:
-        #        with torch.cuda.device(gpu_id):
-        #            predicted_rewards = predicted_rewards.cuda()
-        #            actual_rewards = actual_rewards.cuda()
-
-        #    reward_pred_loss = loss_fn(predicted_rewards, actual_rewards)
-
-        # New Part for the Terminal Prediction Auxiliary Task
-        if args.terminal_prediction and player.done: # this is the only time we can get labels
-            # create the terminal self-supervised labels
-            end_predict_labels = np.arange(1, (len(player.terminal_predictions) + 1)) / (len(player.terminal_predictions) + 1)
+        if args.terminal_prediction: # new way of using emprical episode length as a proxy for current length.
+            if player.average_episode_length is None:
+                end_predict_labels = np.arange(player.eps_len-len(player.terminal_predictions), player.eps_len) / player.eps_len # heuristic
+            else:
+                end_predict_labels = np.arange(player.eps_len-len(player.terminal_predictions), player.eps_len) / player.average_episode_length
 
             for i in range(len(player.terminal_predictions)):
-                 terminal_loss = terminal_loss + ( player.terminal_predictions[i] - end_predict_labels[i] ).pow(2)
+                terminal_loss = terminal_loss + (player.terminal_predictions[i] - end_predict_labels[i]).pow(2)
 
             terminal_loss = terminal_loss / len(player.terminal_predictions)
 
-            #print(terminal_loss)
-
-            player.terminal_predictions = []  # Note that this is not done in clear_actions method as terminal labels are received at the end of episode
 
         player.model.zero_grad()
         #print(f"policy loss {policy_loss} and value loss {value_loss} and terminal loss {terminal_loss} and reward pred loss {reward_pred_loss}")
 
         total_loss = policy_loss + 0.5 * value_loss + 0.5*terminal_loss + 0.5*reward_pred_loss
 
-        if args.terminal_prediction and player.done is False:
-            total_loss.backward(retain_graph=True)
-        else:
-            total_loss.backward() # will free memory ...
+
+        total_loss.backward() # will free memory ...
 
         # Visualize Computation Graph
         #graph = make_dot(total_loss)
@@ -153,3 +139,11 @@ def train(rank, args, shared_model, optimizer, env_conf):
         ensure_shared_grads(player.model, shared_model, gpu=gpu_id >= 0)
         optimizer.step()
         player.clear_actions()
+
+        if player.done:
+            if player.average_episode_length is None: # initial one
+                player.average_episode_length = player.eps_len
+            else:
+                player.average_episode_length = int(0.99 * player.average_episode_length + 0.01 * player.eps_len)
+            #print(player.average_episode_length, 'current one is ', player.eps_len)
+            player.eps_len = 0 # reset here

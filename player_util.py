@@ -23,6 +23,7 @@ class Agent(object):
         self.info = None
         self.reward = 0
         self.gpu_id = -1
+        self.average_episode_length = None # this will be used to approximate current episode length
 
     def action_train(self):
 
@@ -84,4 +85,5 @@ class Agent(object):
         self.rewards = []
         self.entropies = []
         self.reward_predictions = [] # at each regular update, we can utilize reward prediction
+        self.terminal_predictions = []
         return self
