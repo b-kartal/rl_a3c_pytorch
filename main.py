@@ -25,6 +25,12 @@ parser.add_argument(
     metavar='LR',
     help='learning rate (default: 0.0001)')
 parser.add_argument(
+    '--tp',
+    type=float,
+    default=0.5,
+    metavar='TP',
+    help='terminal prediction aux loss weight (default: 0.5)')
+parser.add_argument(
     '--gamma',
     type=float,
     default=0.99,

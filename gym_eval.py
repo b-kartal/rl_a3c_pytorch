@@ -110,7 +110,7 @@ start_time = time.time()
 reward_total_sum = 0
 player = Agent(None, env, args, None)
 player.model = A3Clstm(player.env.observation_space.shape[0],
-                       player.env.action_space)
+                       player.env.action_space, True, False)
 player.gpu_id = gpu_id
 if gpu_id >= 0:
     with torch.cuda.device(gpu_id):

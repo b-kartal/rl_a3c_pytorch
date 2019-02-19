@@ -27,6 +27,9 @@ def train(rank, args, shared_model, optimizer, env_conf):
             optimizer = optim.Adam(
                 shared_model.parameters(), lr=args.lr, amsgrad=args.amsgrad)
     env.seed(args.seed + rank)
+
+    tp_weight = args.tp
+
     player = Agent(None, env, args, None)
     player.gpu_id = gpu_id
     player.model = A3Clstm(player.env.observation_space.shape[0], player.env.action_space, args.terminal_prediction, args.reward_prediction)
@@ -126,7 +129,7 @@ def train(rank, args, shared_model, optimizer, env_conf):
         player.model.zero_grad()
         #print(f"policy loss {policy_loss} and value loss {value_loss} and terminal loss {terminal_loss} and reward pred loss {reward_pred_loss}")
 
-        total_loss = policy_loss + 0.5 * value_loss + 0.5*terminal_loss + 0.5*reward_pred_loss
+        total_loss = policy_loss + 0.5 * value_loss + tp_weight*terminal_loss + 0.5*reward_pred_loss
 
 
         total_loss.backward() # will free memory ...
